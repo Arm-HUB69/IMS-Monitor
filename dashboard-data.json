@@ -1,0 +1,61 @@
+{
+  "today_cases": [
+    {
+      "line": "Ex1",
+      "status": "warning",
+      "message": "ระดับเรซิ่นต่ำกว่าเกณฑ์",
+      "category": "ผลิตมากกว่าแผน",
+      "time": "07:20",
+      "count": 12
+    },
+    {
+      "line": "Ex2",
+      "status": "ok",
+      "message": "ปกติ",
+      "category": "บรรจุภัณฑ์ไม่พร้อม",
+      "time": "07:40",
+      "count": 8
+    },
+    {
+      "line": "Ex3",
+      "status": "critical",
+      "message": "อุณหภูมิสูงผิดปกติ",
+      "category": "งานค้างถังจากรอบก่อน",
+      "time": "08:10",
+      "count": 4
+    },
+    {
+      "line": "Ex4",
+      "status": "ok",
+      "message": "ปกติ",
+      "category": "แผนการผลิต–บรรจุไม่สอดคล้องกัน",
+      "time": "09:15",
+      "count": 15
+    },
+    {
+      "line": "Ex5",
+      "status": "warning",
+      "message": "แรงดันตก",
+      "category": "คลังเก็บเต็ม / ระบายถังไม่ทัน",
+      "time": "10:05",
+      "count": 10
+    }
+  ],
+
+  "today_causes": [
+    { "label": "ผลิตมากกว่าปกติ", "value": 25 },
+    { "label": "คลังเก็บเต็ม", "value": 18 },
+    { "label": "เม็ดอาหารไม่ได้คุณภาพ", "value": 12 },
+    { "label": "บรรจุภัณฑ์ไม่พร้อม", "value": 6 },
+    { "label": "งานค้างถัง", "value": 10 },
+    { "label": "แผนไม่สอดคล้อง", "value": 13 }
+  ],
+
+  "kpi": {
+    "total": 49,
+    "warning": 11,
+    "critical": 5,
+    "avg_wait": 4,
+    "percent_closed": 67
+  }
+}

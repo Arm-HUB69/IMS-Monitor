@@ -1,0 +1,247 @@
+:root {
+    --navy: #0b3350;
+    --neon: #40c7ff;
+    --accent: #7c5cff;
+    --bg: #f3f7fa;
+    --card: #ffffff;
+    --muted: #94a3b8;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --green: #22c55e;
+    --radius: 14px;
+    --shadow: 0 10px 30px rgba(4, 18, 34, 0.06);
+}
+
+body { margin: 0; font-family: 'Inter', sans-serif; background: linear-gradient(180deg, #eaf2f8 0%, var(--bg) 100%); color: #0f172a; }
+* { box-sizing: border-box; }
+
+/* UI Components */
+.nav { background: var(--navy); color: white; padding: 15px 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+.nav-inner { max-width: 1400px; margin: auto; display: flex; justify-content: space-between; align-items: center; }
+.brand-text { font-size: 20px; font-weight: 700; color: #eaf6ff; }
+
+.container { max-width: 1400px; margin: 40px auto; padding: 0 20px; }
+
+/* Hero */
+.hero { text-align: center; margin-bottom: 30px; }
+.hero h1 { color: var(--navy); margin: 0 0 10px 0; }
+.btn { padding: 10px 20px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.btn.primary { background: linear-gradient(90deg, var(--neon), var(--accent)); color: white; box-shadow: 0 4px 15px rgba(64,199,255,0.3); }
+.btn.yellow { background: var(--yellow); color: white; }
+.btn.green { background: var(--green); color: white; }
+.btn.ghost { background: white; border: 1px solid #ccc; color: #666; }
+.pulse-btn { animation: pulse-shadow 2s infinite; font-size: 16px; padding: 14px 28px; }
+
+@keyframes pulse-shadow {
+    0% { box-shadow: 0 0 0 0 rgba(64, 199, 255, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(64, 199, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(64, 199, 255, 0); }
+}
+
+/* Live Cards */
+.live-row { margin-bottom: 25px; }
+.lines { display: flex; gap: 15px; flex-wrap: wrap; }
+.line-card { background: var(--card); flex: 1; min-width: 200px; padding: 20px; border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+.progress-bar { height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden; }
+.progress-fill { height: 100%; transition: width 0.5s; }
+.fill-blue { background: var(--neon); }
+.fill-red { background: var(--red); }
+
+/* Table Section */
+.card { background: white; padding: 20px; border-radius: var(--radius); box-shadow: var(--shadow); }
+.full-width { width: 100%; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th { text-align: left; padding: 12px; background: #f8fafc; color: #64748b; font-size: 13px; }
+.data-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+
+/* Status Badges */
+.badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.badge.new { background: #fee2e2; color: #dc2626; animation: blink 1s infinite; }
+.badge.ack { background: #fef9c3; color: #ca8a04; }
+.badge.done { background: #dcfce7; color: #16a34a; }
+
+@keyframes blink { 50% { opacity: 0.5; } }
+
+.legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; margin-left: 10px; }
+.dot.red { background: var(--red); }
+.dot.yellow { background: var(--yellow); }
+.dot.green { background: var(--green); }
+
+/* Charts Layout */
+.cards-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 25px; }
+.chart-box { height: 250px; position: relative; }
+
+/* Modal */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(11, 51, 80, 0.7); display: none; align-items: center; justify-content: center; z-index: 100; backdrop-filter: blur(2px); }
+.modal-overlay.active { display: flex; }
+.modal-box { background: white; width: 450px; padding: 25px; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); }
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 5px; color: var(--navy); }
+.form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.case-info { background: #f1f5f9; padding: 10px; border-radius: 8px; font-size: 13px; margin-bottom: 15px; border-left: 3px solid var(--navy); }
+/* ... (ใช้ CSS เดิมส่วนใหญ่ เพิ่มส่วนนี้เข้าไป) ... */
+
+.req { color: red; margin-left: 3px; }
+
+/* Lines Monitor */
+.live-row { margin-bottom: 25px; }
+.lines { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; } 
+/* บังคับ 5 ช่องเป๊ะๆ */
+
+.line-card { 
+    background: white; padding: 18px; border-radius: 14px; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05); 
+    display: flex; flex-direction: column; gap: 8px;
+    transition: transform 0.2s;
+    border: 1px solid #f1f5f9;
+}
+.line-card.active { border-color: #ef4444; box-shadow: 0 8px 20px rgba(239, 68, 68, 0.15); }
+
+.line-header { display: flex; justify-content: space-between; font-weight: 700; color: #0b3350; }
+.line-status { font-size: 12px; color: #64748b; }
+
+.severity-bar { 
+    height: 12px; background: #e2e8f0; border-radius: 6px; overflow: hidden; position: relative; 
+}
+.severity-fill { 
+    height: 100%; width: 0%; transition: width 0.5s, background 0.5s; 
+}
+
+/* สีความรุนแรงของหลอด */
+.sv-green  { background: #22c55e; } /* < 30 นาที */
+.sv-yellow { background: #eab308; } /* 30 นาที - 2 ชม */
+.sv-red    { background: #ef4444; animation: pulse-red 1.5s infinite; } /* > 2 ชม */
+
+@keyframes pulse-red { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+/* Mobile Responsive */
+@media (max-width: 900px) {
+    .lines { grid-template-columns: 1fr 1fr; }
+}
+/* ... (CSS เดิมส่วนใหญ่) ... */
+
+/* ปรับ Grid กราฟให้เหลือคอลัมน์เดียว */
+.cards-grid.single-col {
+    display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 25px;
+}
+.chart-box { height: 280px; position: relative; width: 100%; }
+
+/* ทำให้ปุ่ม Action ในตารางเด่นขึ้น */
+.btn-action {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+    transition: transform 0.1s;
+    width: 100px; /* บังคับความกว้างให้เท่ากัน ดูเป็นระเบียบ */
+}
+.btn-action:active { transform: translateY(1px); }
+
+.btn-ack { background: #eab308; color: white; border: 1px solid #ca8a04; }
+.btn-ack:hover { background: #d97706; }
+
+.btn-res { background: #22c55e; color: white; border: 1px solid #16a34a; }
+.btn-res:hover { background: #15803d; }
+
+/* ปุ่มใน Modal ใหญ่ขึ้น */
+.big-action {
+    padding: 12px 24px; font-size: 15px;
+}
+/* =========================
+   NAVBAR STYLES (Modern UI)
+   ========================= */
+
+/* แถบเมนูด้านบน */
+.nav {
+    background-color: var(--navy); /* พื้นหลังสีน้ำเงินเข้ม */
+    color: white;
+    height: 70px; /* ความสูงคงที่ */
+    display: flex;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); /* เงาให้ดูลอย */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.nav-inner {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    justify-content: space-between; /* ดัน Logo ซ้าย เมนู ขวา */
+    align-items: center;
+}
+
+/* โลโก้ */
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+    color: #fff;
+}
+
+/* กลุ่มปุ่มเมนู */
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 8px; /* ระยะห่างระหว่างปุ่ม */
+}
+
+/* ดีไซน์ปุ่มปกติ */
+.nav-btn {
+    text-decoration: none;
+    color: rgba(255, 255, 255, 0.7); /* สีขาวจางๆ */
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+/* ตอนเอาเมาส์ชี้ */
+.nav-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+    transform: translateY(-1px);
+}
+
+/* ปุ่มหน้าปัจจุบัน (Active) */
+.nav-btn.active {
+    background: linear-gradient(90deg, rgba(64, 199, 255, 0.15), rgba(64, 199, 255, 0.05));
+    color: var(--neon); /* สีฟ้า Neon */
+    border: 1px solid rgba(64, 199, 255, 0.3);
+    box-shadow: 0 0 15px rgba(64, 199, 255, 0.1);
+}
+
+/* ปุ่ม Login */
+.user-profile {
+    margin-left: 16px;
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.user-profile:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.3);
+}

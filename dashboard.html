@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IMS Dashboard (Executive View)</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: { 
+                        'navy': '#0f172a', 
+                        'primary': '#2563eb',
+                        'danger': '#dc2626',
+                        'success': '#16a34a',
+                        'warning': '#d97706',
+                        'slate-dark': '#1e293b',
+                        'slate-mid': '#64748b',
+                        'slate-light': '#94a3b8'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background: #f8fafc; font-family: 'Inter', sans-serif; color: #1e293b; }
+        /* Custom Scrollbar */
+        .table-container::-webkit-scrollbar { height: 6px; }
+        .table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        th.sortable { cursor: pointer; user-select: none; transition: color 0.2s; }
+        th.sortable:hover { color: #2563eb; }
+    </style>
+</head>
+
+<body class="text-slate-800 antialiased">
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <div class="brand">
+                <span class="brand-text">IMS Tank Monitor</span>
+            </div>
+            <div class="nav-links">
+                <a href="index.html" class="nav-btn">Operation (Live)</a>
+                <a href="dashboard.html" class="nav-btn active">Dashboard</a>
+                <a href="viewReport.html" class="nav-btn">View Report</a>
+                <a href="manage-photo.html" class="nav-btn">Photos (Admin)</a>
+                <div class="user-profile" onclick="location.href='index.html'" style="cursor: pointer;">
+                    Home 🏠
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto mt-[40px] mb-16 px-4 sm:px-6 lg:px-8">
+
+        <div class="flex flex-col md:flex-row justify-between items-end mb-8">
+            <div>
+                <h1 class="text-3xl font-extrabold text-navy tracking-tight">Production Dashboard</h1>
+                <p class="text-sm text-slate-500 mt-1 font-medium">Overview performance & downtime analysis</p>
+            </div>
+            <div class="text-right text-xs text-slate-400 font-medium bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">
+                Last updated: <span id="lastUpdate" class="font-bold text-primary">Now</span>
+            </div>
+        </div>
+
+        <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-8 sticky top-[80px] z-40">
+            <div class="flex flex-col lg:flex-row justify-between items-center gap-4">
+                <div class="flex space-x-2 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button onclick="setFilter('today')" class="px-5 py-1.5 rounded-md text-sm font-bold transition hover:bg-white hover:shadow-sm hover:text-primary text-slate-600">Today</button>
+                    <button onclick="setFilter('yesterday')" class="px-5 py-1.5 rounded-md text-sm font-bold transition hover:bg-white hover:shadow-sm hover:text-primary text-slate-600">Yesterday</button>
+                    <button onclick="setFilter('all')" class="px-5 py-1.5 rounded-md text-sm font-bold transition hover:bg-white hover:shadow-sm hover:text-primary text-slate-600">All</button>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center space-x-2 border border-slate-300 px-3 py-1.5 rounded-lg bg-white focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Date:</span>
+                        <input type="date" id="startDate" class="text-sm font-semibold text-slate-700 outline-none bg-transparent">
+                        <span class="text-slate-300">|</span>
+                        <input type="date" id="endDate" class="text-sm font-semibold text-slate-700 outline-none bg-transparent">
+                    </div>
+                    <div class="flex items-center space-x-2 border border-slate-300 px-3 py-1.5 rounded-lg bg-white focus-within:ring-2 focus-within:ring-primary transition">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Line:</span>
+                        <select id="lineFilter" class="text-sm font-bold text-slate-700 outline-none bg-transparent cursor-pointer">
+                            <option value="all">All Lines</option>
+                            <option value="Ex.1">Ex.1</option>
+                            <option value="Ex.2">Ex.2</option>
+                            <option value="Ex.3">Ex.3</option>
+                            <option value="Ex.4">Ex.4</option>
+                            <option value="Ex.5">Ex.5</option>
+                        </select>
+                    </div>
+                    <button onclick="applyFilters()" class="bg-navy text-white px-6 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-slate-800 hover:shadow-lg transition transform active:scale-95 flex items-center gap-2">
+                        <span>🔍 Filter</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 mb-8">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-32 group hover:shadow-md transition">
+                <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Cases</div>
+                <div class="text-4xl font-black text-navy tracking-tighter" id="kpiTotal">...</div>
+                <div class="text-xs font-medium text-slate-400 group-hover:text-primary transition">records found</div>
+            </div>
+            
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-l-danger flex flex-col justify-between h-32 group hover:shadow-md transition">
+                <div class="text-xs font-bold text-danger uppercase tracking-wider">Total Downtime</div>
+                <div class="text-4xl font-black text-danger tracking-tighter" id="kpiTotalTime">...</div>
+                <div class="text-xs font-medium text-red-300 group-hover:text-red-500 transition">Loss Time</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-32 group hover:shadow-md transition">
+                <div class="text-xs font-bold text-warning uppercase tracking-wider">Max Wait</div>
+                <div class="text-4xl font-black text-warning tracking-tighter" id="kpiMaxTime">...</div>
+                <div class="text-xs font-medium text-slate-400">Longest delay</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-32 group hover:shadow-md transition">
+                <div class="text-xs font-bold text-primary uppercase tracking-wider">Avg. Wait</div>
+                <div class="text-4xl font-black text-primary tracking-tighter" id="kpiAvgTime">...</div>
+                <div class="text-xs font-medium text-slate-400">Per case</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between h-32 group hover:shadow-md transition">
+                <div class="text-xs font-bold text-success uppercase tracking-wider">% Closed</div>
+                <div class="text-4xl font-black text-success tracking-tighter" id="kpiClosed">...</div>
+                <div class="text-xs font-medium text-slate-400">Completion rate</div>
+            </div>
+        </section>
+
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
+                <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
+                    <h4 class="text-lg font-bold text-navy flex items-center gap-2">
+                        <span class="w-1.5 h-6 bg-primary rounded-full"></span>
+                        Downtime by Line (Minutes)
+                    </h4>
+                    <div class="px-3 py-1 bg-slate-100 text-xs font-bold rounded-full text-slate-500">Stacked View</div>
+                </div>
+                <div class="h-72 w-full">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center">
+                <h4 class="text-lg font-bold text-navy mb-6 w-full text-left border-b border-slate-100 pb-4 flex items-center gap-2">
+                    <span class="w-1.5 h-6 bg-warning rounded-full"></span>
+                    Root Cause Analysis
+                </h4>
+                <div class="h-52 w-52 relative mb-6">
+                    <canvas id="pieChart"></canvas>
+                </div>
+                <div id="pieLegend" class="flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs font-medium text-slate-600 w-full"></div>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <h4 class="text-lg font-bold text-navy">Detailed Logs</h4>
+                <span id="showingCount" class="text-xs font-bold text-primary bg-blue-50 border border-blue-100 px-3 py-1 rounded-full">Loading...</span>
+            </div>
+            <div class="overflow-x-auto table-container">
+                <table class="min-w-full divide-y divide-slate-100">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider sortable" onclick="sortTable('startTime')">Time ↕</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider sortable" onclick="sortTable('line')">Line ↕</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Recipe</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider sortable" onclick="sortTable('status')">Status ↕</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Issue (Reason)</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider sortable" onclick="sortTable('duration')">Wait ↕</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Reporter</th>
+                        </tr>
+                    </thead>
+                    <tbody id="casesTableBody" class="bg-white divide-y divide-slate-50 text-sm"></tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- CONFIGURATION ---
+        const SUPABASE_URL = 'https://xsnxtkukxorjxogirrrx.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhzbnh0a3VreG9yanhvZ2lycnJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNDc3NzIsImV4cCI6MjA3OTcyMzc3Mn0.tuiYQtbwrU8GE2OzeZT4PhB9TKgFzBSHS1XbaNknvGM';
+        
+        const { createClient } = supabase;
+        const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        Chart.register(ChartDataLabels);
+
+        // --- VARIABLES ---
+        let allCases = [], filteredCases = [];
+        let barChartInstance = null, pieChartInstance = null;
+        let sortDirection = -1;
+
+        // --- INIT ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadData();
+            setFilter('today');
+            setInterval(async () => { await loadData(); applyFilters(); }, 30000); 
+        });
+
+        async function loadData() {
+            const { data, error } = await sb
+                .from('ims_cases')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(1000);
+
+            if (error) { console.error(error); return; }
+
+            allCases = data.map(c => {
+                const start = new Date(c.created_at);
+                const end = c.resolve_time ? new Date(c.resolve_time) : new Date();
+                let duration = Math.ceil((end - start) / 60000);
+                if (duration < 0) duration = 0;
+
+                return {
+                    id: c.id,
+                    startTime: start,
+                    line: c.line,
+                    reporter: c.reporter,
+                    recipe: c.recipe,
+                    status: c.status,
+                    ackReason: c.ack_reason || '-',
+                    duration: duration
+                };
+            });
+            
+            document.getElementById('lastUpdate').innerText = new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
+        }
+
+        function setFilter(mode) {
+            const today = new Date();
+            const startIn = document.getElementById('startDate');
+            const endIn = document.getElementById('endDate');
+            const dateStr = today.toISOString().split('T')[0];
+
+            if (mode === 'today') { startIn.value = dateStr; endIn.value = dateStr; }
+            else if (mode === 'yesterday') {
+                today.setDate(today.getDate() - 1);
+                const yStr = today.toISOString().split('T')[0];
+                startIn.value = yStr; endIn.value = yStr;
+            } else { startIn.value = ''; endIn.value = ''; }
+            
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const sVal = document.getElementById('startDate').value;
+            const eVal = document.getElementById('endDate').value;
+            const lVal = document.getElementById('lineFilter').value;
+
+            filteredCases = allCases.filter(c => {
+                const cDate = c.startTime.toISOString().split('T')[0];
+                const dateMatch = (!sVal || cDate >= sVal) && (!eVal || cDate <= eVal);
+                const lineMatch = lVal === 'all' || c.line === lVal;
+                return dateMatch && lineMatch;
+            });
+
+            updateUI();
+        }
+
+        function updateUI() {
+            renderKPIs();
+            renderCharts();
+            renderTable();
+            document.getElementById('showingCount').innerText = `${filteredCases.length} Cases Found`;
+        }
+
+        function renderKPIs() {
+            const total = filteredCases.length;
+            let closed = 0, totalMins = 0, maxMins = 0;
+
+            filteredCases.forEach(c => {
+                totalMins += c.duration;
+                if(c.duration > maxMins) maxMins = c.duration;
+                if(c.status === 'done') closed++;
+            });
+
+            document.getElementById('kpiTotal').innerText = total;
+            document.getElementById('kpiTotalTime').innerText = formatTime(totalMins);
+            document.getElementById('kpiMaxTime').innerText = maxMins + " m";
+            document.getElementById('kpiAvgTime').innerText = total ? Math.round(totalMins/total) + " m" : "-";
+            document.getElementById('kpiClosed').innerText = total ? Math.round((closed/total)*100) + '%' : '-';
+        }
+
+        function formatTime(m) {
+            if(m < 60) return m + " m";
+            return `${Math.floor(m/60)}h ${m%60}m`;
+        }
+
+        function renderCharts() {
+            // Colors Palette (Vivid & Professional)
+            const colors = { 
+                'คลังเต็ม': '#ef4444', 'รอ QC': '#3b82f6', 'ผลิตเกินแผน': '#f59e0b', 
+                'แผนดีเลย์': '#8b5cf6', 'บรรจุภัณฑ์หมด': '#f97316', 'อื่นๆ': '#64748b', 'รอรับเรื่อง': '#0f172a' 
+            };
+            
+            const lines = ['Ex.1', 'Ex.2', 'Ex.3', 'Ex.4', 'Ex.5'];
+            const reasons = Object.keys(colors);
+            
+            let stackData = {};
+            reasons.forEach(r => stackData[r] = [0,0,0,0,0]);
+            let reasonCounts = {};
+
+            filteredCases.forEach(c => {
+                const idx = lines.indexOf(c.line);
+                const r = (c.status === 'new') ? 'รอรับเรื่อง' : (c.ackReason || 'อื่นๆ');
+                const key = stackData[r] ? r : 'อื่นๆ';
+                
+                if(idx !== -1) stackData[key][idx] += c.duration; // Sum Time
+                reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+            });
+
+            const datasets = reasons.map(r => ({
+                label: r, data: stackData[r], backgroundColor: colors[r], stack: 'Stack 0', borderRadius: 2, barThickness: 30
+            }));
+
+            if(barChartInstance) barChartInstance.destroy();
+            if(pieChartInstance) pieChartInstance.destroy();
+
+            // Bar Chart
+            barChartInstance = new Chart(document.getElementById('barChart'), {
+                type: 'bar',
+                data: { labels: lines, datasets: datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { x: { stacked: true, grid: {display: false} }, y: { stacked: true, border: {display: false} } },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 15, font: {family: 'Inter', size: 11} } },
+                        datalabels: { color: 'white', font: {weight:'bold', size:10}, display: ctx => ctx.dataset.data[ctx.dataIndex] > 0 }
+                    }
+                }
+            });
+
+            // Pie Chart
+            const pieData = { labels: Object.keys(reasonCounts), datasets: [{ data: Object.values(reasonCounts), backgroundColor: Object.keys(reasonCounts).map(k => colors[k] || '#ccc'), borderWidth: 0 }] };
+            pieChartInstance = new Chart(document.getElementById('pieChart'), {
+                type: 'doughnut', data: pieData,
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '70%',
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { color: 'white', font: {weight:'bold'}, formatter: (val, ctx) => {
+                            let sum = ctx.chart.data.datasets[0].data.reduce((a,b) => a+b, 0);
+                            return (val*100/sum).toFixed(0) + "%";
+                        }}
+                    }
+                }
+            });
+
+            const leg = document.getElementById('pieLegend');
+            leg.innerHTML = Object.keys(reasonCounts).map(k => 
+                `<div class="flex items-center gap-1.5 mb-1"><span class="w-2.5 h-2.5 rounded-full shadow-sm" style="background:${colors[k]||'#ccc'}"></span><span class="text-slate-600 font-medium">${k}</span> <span class="text-slate-400">(${reasonCounts[k]})</span></div>`
+            ).join('');
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('casesTableBody');
+            tbody.innerHTML = '';
+            
+            filteredCases.forEach(c => {
+                let badgeClass = c.status === 'done' ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-600/20' : (c.status === 'ack' ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-600/20' : 'bg-rose-100 text-rose-700 ring-1 ring-rose-600/20');
+                let durClass = c.duration > 60 ? 'text-red-600 font-bold' : 'text-slate-600 font-medium';
+                let statusText = c.status === 'done' ? 'CLOSED' : (c.status === 'ack' ? 'WIP' : 'NEW');
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-blue-50/50 border-b border-slate-100 transition duration-150">
+                        <td class="px-6 py-4 font-mono text-xs text-slate-500">${c.startTime.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'})}</td>
+                        <td class="px-6 py-4 font-bold text-navy">${c.line}</td>
+                        <td class="px-6 py-4 text-slate-700 font-medium">${c.recipe}</td>
+                        <td class="px-6 py-4"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase ${badgeClass}">${statusText}</span></td>
+                        <td class="px-6 py-4 text-slate-600 text-sm">${c.status === 'new' ? '-' : c.ackReason}</td>
+                        <td class="px-6 py-4 ${durClass}">${c.duration} m</td>
+                        <td class="px-6 py-4 text-slate-400 text-xs uppercase tracking-wider">${c.reporter}</td>
+                    </tr>`;
+            });
+        }
+
+        function sortTable(key) {
+            sortDirection *= -1;
+            filteredCases.sort((a, b) => {
+                let valA = key === 'startTime' ? a.startTime.getTime() : a[key];
+                let valB = key === 'startTime' ? b.startTime.getTime() : b[key];
+                return (valA < valB ? -1 : 1) * sortDirection;
+            });
+            renderTable();
+        }
+    </script>
+</body>
+</html>

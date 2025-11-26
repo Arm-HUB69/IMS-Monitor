@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IMS Monitor — Photo Manager</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: { 
+                        'navy': '#0f172a', 
+                        'primary': '#3b82f6',
+                        'danger': '#ef4444',
+                        'success': '#10b981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background: #f8fafc; font-family: 'Inter', sans-serif; }
+        
+        /* Photo Card Animation */
+        .photo-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .photo-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.1); }
+        
+        /* Modal Animation */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px);
+            display: none; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.2s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .modal-box {
+            background: white; width: 380px; padding: 30px; border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); text-align: center;
+            transform: scale(0.95); animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        @keyframes popIn { to { transform: scale(1); } }
+
+        /* Loading Overlay */
+        #loadingOverlay {
+            position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 999;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #0f172a;
+            border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+
+<body class="text-slate-700 antialiased">
+
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <div id="loadingText" class="font-bold text-slate-800 text-lg">Processing...</div>
+    </div>
+
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal-box">
+            <div class="mx-auto bg-blue-50 w-16 h-16 rounded-full flex items-center justify-center mb-4 text-3xl">🔐</div>
+            <h3 class="text-xl font-bold text-slate-800 mb-1">Admin Access</h3>
+            <p class="text-sm text-slate-500 mb-6">Enter security PIN to manage data</p>
+            
+            <input type="password" id="loginPin" placeholder="••••••" class="w-full text-center text-2xl font-mono tracking-[0.5em] border border-slate-200 rounded-xl py-3 mb-6 focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition bg-slate-50">
+            
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeLoginModal()" class="flex-1 px-4 py-2.5 rounded-lg text-slate-500 font-medium hover:bg-slate-100 transition">Cancel</button>
+                <button onclick="confirmLogin()" class="flex-1 px-4 py-2.5 rounded-lg bg-navy text-white font-bold hover:bg-slate-800 transition shadow-lg shadow-slate-900/20">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <div class="brand">
+                <span class="brand-text">IMS Tank Monitor</span>
+            </div>
+            <div class="nav-links">
+                <a href="index.html" class="nav-btn">Operation (Live)</a>
+                <a href="dashboard.html" class="nav-btn">Dashboard</a>
+                <a href="viewReport.html" class="nav-btn">View Report</a>
+                <a href="manage-photo.html" class="nav-btn active">Photos (Admin)</a>
+                
+                <div class="user-profile" onclick="location.href='index.html'" style="cursor: pointer;">
+                    Home 🏠
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto mt-[40px] mb-16 px-4 sm:px-6 lg:px-8">
+
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                    Evidence Gallery 
+                    <span class="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-0.5 rounded-full font-bold tracking-wide">CLOUD</span>
+                </h1>
+                <p class="text-sm text-slate-500 mt-1 flex items-center gap-2 font-medium">
+                    <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-300 ring-4 ring-slate-100"></span>
+                    <span id="statusText">Status: Guest (View Only)</span>
+                </p>
+            </div>
+            <button id="btnAdminUnlock" onclick="openLoginModal()" class="bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 hover:border-slate-300 transition flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg>
+                Admin Unlock
+            </button>
+        </div>
+
+        <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-8 flex flex-wrap gap-4 items-center sticky top-[80px] z-30">
+            <div class="relative flex-1 md:flex-none w-full md:w-72">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3 top-2.5 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                <input type="text" id="searchInput" placeholder="Search line, reporter, recipe..." class="pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none w-full transition bg-slate-50 focus:bg-white">
+            </div>
+            
+            <div class="relative">
+                <select id="lineFilter" class="appearance-none border border-slate-200 rounded-lg pl-4 pr-10 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none cursor-pointer bg-slate-50 focus:bg-white font-medium text-slate-600">
+                    <option value="all">All Lines</option>
+                    <option value="Ex.1">Ex.1</option>
+                    <option value="Ex.2">Ex.2</option>
+                    <option value="Ex.3">Ex.3</option>
+                    <option value="Ex.4">Ex.4</option>
+                    <option value="Ex.5">Ex.5</option>
+                </select>
+                <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+            </div>
+
+            <div id="adminControls" class="hidden flex gap-3 ml-auto w-full md:w-auto justify-end border-l border-slate-100 pl-4">
+                <button onclick="exportZip()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-emerald-700 transition flex items-center gap-2 shadow-sm shadow-emerald-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                    Backup ZIP
+                </button>
+                <button onclick="resetSystem()" class="bg-white border border-red-200 text-red-600 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-red-50 transition flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                    Reset
+                </button>
+            </div>
+        </section>
+
+        <div id="galleryGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            </div>
+
+    </main>
+
+    <script>
+        // --- CONFIGURATION ---
+        const SUPABASE_URL = 'https://xsnxtkukxorjxogirrrx.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhzbnh0a3VreG9yanhvZ2lycnJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNDc3NzIsImV4cCI6MjA3OTcyMzc3Mn0.tuiYQtbwrU8GE2OzeZT4PhB9TKgFzBSHS1XbaNknvGM';
+
+        const { createClient } = supabase;
+        const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let allData = [];
+
+        // --- INIT ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            
+            const searchInput = document.getElementById('searchInput');
+            const lineFilter = document.getElementById('lineFilter');
+            
+            if(searchInput) searchInput.addEventListener('input', renderGallery);
+            if(lineFilter) lineFilter.addEventListener('change', renderGallery);
+            
+            document.getElementById('loginPin').addEventListener("keypress", function(event) {
+                if (event.key === "Enter") confirmLogin();
+            });
+        });
+
+        // 1. LOAD DATA
+        async function loadData() {
+            showLoader(true, "Loading gallery...");
+            
+            const { data, error } = await sb
+                .from('ims_cases')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error(error);
+                showLoader(false);
+                return;
+            }
+
+            allData = data;
+            renderGallery();
+            showLoader(false);
+        }
+
+        // 2. RENDER GALLERY
+        function renderGallery() {
+            const container = document.getElementById('galleryGrid');
+            if(!container) return;
+
+            const searchEl = document.getElementById('searchInput');
+            const lineEl = document.getElementById('lineFilter');
+            const searchText = searchEl ? searchEl.value.toLowerCase() : '';
+            const filterVal = lineEl ? lineEl.value : 'all';
+
+            container.innerHTML = '';
+
+            const filtered = allData.filter(c => {
+                const matchLine = filterVal === 'all' || c.line === filterVal;
+                const searchStr = `${c.line} ${c.reporter} ${c.recipe} ${c.ack_reason || ''}`.toLowerCase();
+                const matchSearch = searchStr.includes(searchText);
+                return matchLine && matchSearch;
+            });
+
+            // Status Text Update
+            const statusText = document.getElementById('statusText');
+            const statusDot = document.getElementById('statusDot');
+            if(statusText) {
+                if (window.isAdmin) {
+                    statusText.innerText = `Admin Mode (Items: ${filtered.length})`;
+                    statusText.classList.add('text-emerald-600', 'font-bold');
+                    statusDot.classList.replace('bg-slate-300', 'bg-emerald-500');
+                    statusDot.classList.replace('ring-slate-100', 'ring-emerald-100');
+                } else {
+                    statusText.innerText = `Guest Mode (Items: ${filtered.length})`;
+                    statusText.classList.remove('text-emerald-600', 'font-bold');
+                    statusDot.classList.replace('bg-emerald-500', 'bg-slate-300');
+                    statusDot.classList.replace('ring-emerald-100', 'ring-slate-100');
+                }
+            }
+
+            if(filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full flex flex-col items-center justify-center py-20">
+                        <div class="bg-slate-50 p-6 rounded-full mb-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        </div>
+                        <p class="text-slate-400 font-medium">No images found</p>
+                        <p class="text-xs text-slate-300 mt-1">Try adjusting filters</p>
+                    </div>`;
+                return;
+            }
+
+            filtered.forEach(c => {
+                const dateStr = new Date(c.created_at).toLocaleDateString('th-TH');
+                const timeStr = new Date(c.created_at).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
+                const displayImg = c.ex_photo_url || c.resolve_photo_url || "https://via.placeholder.com/400x300?text=No+Image";
+                
+                // Status Color Logic
+                const isDone = c.status === 'done';
+                const badgeColor = isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700';
+                
+                // Admin Button
+                const deleteBtn = window.isAdmin 
+                    ? `<button onclick="deleteCase(${c.id})" class="text-slate-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition" title="Delete">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                       </button>` 
+                    : '';
+
+                const html = `
+                    <div class="photo-card group relative bg-white rounded-xl border border-slate-200 flex flex-col overflow-hidden hover:shadow-xl hover:border-primary/50">
+                        <a href="${displayImg}" target="_blank" class="relative block h-48 overflow-hidden bg-slate-100">
+                            <img src="${displayImg}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="Evidence">
+                            <div class="absolute top-3 right-3">
+                                <span class="text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm uppercase tracking-wide ${badgeColor}">
+                                    ${c.status}
+                                </span>
+                            </div>
+                            <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors"></div>
+                        </a>
+                        
+                        <div class="p-4 flex-1 flex flex-col">
+                            <div class="flex justify-between items-start mb-2">
+                                <h4 class="font-bold text-slate-800 text-lg">${c.line}</h4>
+                                <span class="text-xs text-slate-500 font-mono bg-slate-50 px-2 py-1 rounded border border-slate-100">${dateStr}</span>
+                            </div>
+                            
+                            <div class="space-y-1 mb-4">
+                                <div class="text-sm text-slate-600 flex items-center gap-2">
+                                    <span class="text-slate-400 text-xs uppercase font-bold w-10">Recipe</span>
+                                    <span class="font-semibold text-slate-800">${c.recipe}</span>
+                                </div>
+                                <div class="text-sm text-slate-600 flex items-center gap-2">
+                                    <span class="text-slate-400 text-xs uppercase font-bold w-10">By</span>
+                                    <span>${c.reporter}</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
+                                <span class="text-xs font-bold text-slate-400 flex items-center gap-1.5">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    ${timeStr}
+                                </span>
+                                ${deleteBtn}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += html;
+            });
+        }
+
+        // 3. ADMIN LOGIC
+        function openLoginModal() {
+            if (window.isAdmin) {
+                if(confirm("Logout Admin Mode?")) {
+                    window.isAdmin = false;
+                    updateAdminUI();
+                }
+            } else {
+                document.getElementById('loginPin').value = '';
+                document.getElementById('loginModal').classList.add('active');
+                setTimeout(() => document.getElementById('loginPin').focus(), 100);
+            }
+        }
+
+        function closeLoginModal() {
+            document.getElementById('loginModal').classList.remove('active');
+        }
+
+        function confirmLogin() {
+            const pin = document.getElementById('loginPin').value;
+            if (pin === "240442") {
+                window.isAdmin = true;
+                updateAdminUI();
+                closeLoginModal();
+            } else {
+                alert("Incorrect PIN");
+                document.getElementById('loginPin').value = '';
+            }
+        }
+
+        function updateAdminUI() {
+            const btn = document.getElementById('btnAdminUnlock');
+            const adminPanel = document.getElementById('adminControls');
+
+            if (window.isAdmin) {
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-emerald-200" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z" clip-rule="evenodd" /></svg> Unlocked`;
+                btn.className = "bg-navy text-emerald-400 border border-navy px-5 py-2.5 rounded-lg text-sm font-bold shadow-lg transition flex items-center gap-2";
+                adminPanel.classList.remove('hidden');
+            } else {
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" /></svg> Admin Unlock`;
+                btn.className = "bg-white border border-slate-200 text-slate-700 px-5 py-2.5 rounded-lg text-sm font-bold shadow-sm hover:bg-slate-50 transition flex items-center gap-2";
+                adminPanel.classList.add('hidden');
+            }
+            renderGallery();
+        }
+
+        // 4. ACTIONS
+        async function deleteCase(id) {
+            if(!confirm("Permanently delete this record?")) return;
+            showLoader(true, "Deleting...");
+            const { error } = await sb.from('ims_cases').delete().eq('id', id);
+            if(error) alert("Error: " + error.message);
+            else await loadData();
+            showLoader(false);
+        }
+
+        async function resetSystem() {
+            if(!confirm("⚠️ FACTORY RESET: All data will be wiped!\nContinue?")) return;
+            showLoader(true, "Wiping data...");
+            const { error } = await sb.from('ims_cases').delete().neq('id', 0);
+            if(error) alert("Error: " + error.message);
+            else { alert("System Reset Complete"); await loadData(); }
+            showLoader(false);
+        }
+
+        async function exportZip() {
+            if(allData.length === 0) { alert("No data to backup"); return; }
+            if(!confirm(`Download ZIP backup (${allData.length} items)?`)) return;
+
+            showLoader(true, "Creating ZIP...");
+            const zip = new JSZip();
+            const folder = zip.folder("IMS_Backup_" + new Date().toISOString().slice(0,10));
+            let csvContent = "\uFEFFDate,Time,Line,Recipe,Reporter,Status,Downtime(Min),ImageURL\n";
+
+            const promises = allData.map(async (c) => {
+                csvContent += `${c.created_at},${c.line},"${c.recipe}",${c.reporter},${c.status},${Math.ceil((new Date(c.resolve_time||new Date()) - new Date(c.created_at))/60000)},${c.ex_photo_url}\n`;
+                if(c.ex_photo_url) {
+                    try {
+                        const response = await fetch(c.ex_photo_url + '?t=' + Date.now());
+                        const blob = await response.blob();
+                        const ext = c.ex_photo_url.split('.').pop().split('?')[0] || 'jpg';
+                        folder.file(`${c.line}_${c.id}.${ext}`, blob);
+                    } catch (e) {}
+                }
+            });
+
+            await Promise.all(promises);
+            folder.file("report.csv", csvContent);
+            const content = await zip.generateAsync({type:"blob"});
+            saveAs(content, "IMS_Backup.zip");
+            showLoader(false);
+        }
+
+        function showLoader(show, text = "") {
+            document.getElementById('loadingText').innerText = text;
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+        }
+    </script>
+</body>
+</html>

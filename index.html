@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMS Monitor - Production Control</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <div class="brand">
+                <span class="brand-text">IMS Tank Monitor</span>
+            </div>
+
+            <div class="nav-links">
+                <a href="index.html" class="nav-btn active">Operation (Live)</a>
+                <a href="dashboard.html" class="nav-btn">Dashboard</a>
+                <a href="viewReport.html" class="nav-btn">View Report</a>
+                <a href="manage-photo.html" class="nav-btn">Photos (Admin)</a>
+                
+                <div class="user-profile" id="userDisplay" onclick="openLoginModal()" style="cursor: pointer;">
+                    Login 🔒
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <section class="hero">
+            <h1>IMS Monitor</h1>
+            <p class="lead">ติดตามสถานะการรอถัง (Real-time)</p>
+            <div class="cta">
+                <button class="btn primary pulse-btn big-shadow" onclick="openModal('extruderModal')">
+                    🚨 แจ้งถังเต็ม (Extruder Report)
+                </button>
+            </div>
+        </section>
+
+        <section class="live-row">
+            <h3 style="width:100%; margin-bottom:15px; color:#0b3350;">สถานะไลน์ Extruder (Wait Time Monitor)</h3>
+            <div id="linesContainer" class="lines">
+                </div>
+        </section>
+
+        <section class="cards-grid single-col">
+            <div class="card">
+                <h4 style="display:flex; justify-content:space-between;">
+                    สรุปเวลารอคอยวันนี้ (Downtime by Line)
+                    <span style="font-size:12px; color:#94a3b8; font-weight:400;">หน่วย: นาที</span>
+                </h4>
+                <div class="chart-box">
+                    <canvas id="downtimeChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section class="table-section">
+            <div class="card full-width">
+                <div class="card-header">
+                    <h3>📋 รายการแจ้งปัญหา (Live Cases)</h3>
+                    <div class="legend">
+                        <span class="dot red"></span> รอรับเรื่อง
+                        <span class="dot yellow"></span> กำลังหาถัง
+                        <span class="dot green"></span> จบงาน
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>เวลาแจ้ง</th>
+                                <th>Line</th>
+                                <th>ผู้แจ้ง (Ext)</th>
+                                <th>สินค้า (แผน)</th>
+                                <th>ระยะเวลารอ</th>
+                                <th>สถานะ</th>
+                                <th>Action (Blending)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="caseTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <footer class="foot">
+            © IMS Monitor — Built for PCG Team
+        </footer>
+
+    </main>
+
+    <div class="modal-overlay" id="extruderModal">
+        <div class="modal-box">
+            <div class="modal-head"><h3>🚨 Extruder: แจ้งถังเต็ม</h3></div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>วันที่ (Auto)</label>
+                    <input type="date" id="exDate" readonly style="background:#f1f5f9;">
+                </div>
+                <div class="form-group">
+                    <label>เวลา (Auto)</label>
+                    <input type="text" id="exTime" readonly style="background:#f1f5f9;">
+                </div>
+                <div class="form-group">
+                    <label>ไลน์ผลิต <span class="req">*</span></label>
+                    <select id="exLine">
+                        <option value="">-- เลือกไลน์ --</option>
+                        <option value="Ex.1">Ex.1</option>
+                        <option value="Ex.2">Ex.2</option>
+                        <option value="Ex.3">Ex.3</option>
+                        <option value="Ex.4">Ex.4</option>
+                        <option value="Ex.5">Ex.5</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>ผู้รายงาน (Extruder) <span class="req">*</span></label>
+                    <input type="text" id="exReporter" placeholder="ชื่อพนักงาน">
+                </div>
+                <div class="form-group">
+                    <label>สูตรสินค้า <span class="req">*</span></label>
+                    <input type="text" id="exRecipe" placeholder="เช่น 54HHH44">
+                </div>
+                <div class="form-group">
+                    <label>แผนผลิต (ตัน) <span class="req">*</span></label>
+                    <input type="number" id="exPlan" oninput="calcTank()" placeholder="0">
+                </div>
+                <div class="form-group full">
+                    <label>จำนวนถังที่ต้องใช้</label>
+                    <input type="text" id="exTankReq" readonly style="background:#e0f2fe; font-weight:bold; color:#0284c7;">
+                </div>
+                <div class="form-group full">
+                    <label>📸 รูปหลักฐาน <span class="req">*</span></label>
+                    <input type="file" id="exPhoto">
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button class="btn ghost" onclick="closeModal('extruderModal')">ยกเลิก</button>
+                <button class="btn primary big-action" onclick="submitExtruder()">ยืนยันแจ้งเหตุ</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="blendingAckModal">
+        <div class="modal-box">
+            <div class="modal-head"><h3>⚠️ Blending: รับทราบงาน</h3></div>
+            <div class="case-info" id="ackCaseInfo"></div>
+            <div class="form-group full">
+                <label>สาเหตุเบื้องต้น <span class="req">*</span></label>
+                <select id="ackReason">
+                    <option value="">-- เลือกสาเหตุ --</option>
+                    <option value="คลังเต็ม">1. คลังเต็ม (Packing เคลียร์ไม่ได้)</option>
+                    <option value="ผลิตมากกว่าแผน">2. ผลิตมากกว่าแผน</option>
+                    <option value="งานรันมาไม่ได้คุณภาพ">3. งานรันมาไม่ได้คุณภาพ</option>
+                    <option value="แผนบรรจุดีเลย์">4. แผนบรรจุดีเลย์</option>
+                    <option value="บรรจุภัณฑ์ไม่มี">5. บรรจุภัณฑ์ไม่มี</option>
+                    <option value="อื่นๆ">6. อื่นๆ</option>
+                </select>
+            </div>
+            <div class="modal-foot">
+                <button class="btn ghost" onclick="closeModal('blendingAckModal')">ปิด</button>
+                <button class="btn yellow big-action" onclick="submitAck()">รับทราบ (กำลังหาถัง)</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="blendingResolveModal">
+        <div class="modal-box">
+            <div class="modal-head"><h3>✅ Blending: ยืนยันจบงาน</h3></div>
+            <div class="case-info" id="resCaseInfo"></div>
+            <div class="form-group full">
+                <label>ผู้ปิดงาน (Blending) <span class="req">*</span></label>
+                <input type="text" id="blResName" placeholder="ชื่อพนักงาน">
+            </div>
+            <div class="form-group full">
+                <label>ถังที่เตรียมให้ (Tank ID) <span class="req">*</span></label>
+                <input type="text" id="resTankId" placeholder="เช่น T-05, Silo-2">
+            </div>
+            <div class="form-group full">
+                <label>📸 รูปยืนยัน <span class="req">*</span></label>
+                <input type="file" id="resPhoto">
+            </div>
+            <div class="modal-foot">
+                <button class="btn ghost" onclick="closeModal('blendingResolveModal')">ปิด</button>
+                <button class="btn green big-action" onclick="submitResolve()">ยืนยันจบงาน</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal-box" style="width: 350px; text-align: center;">
+            <div class="modal-head" style="justify-content: center;">
+                <h3 style="margin:0;">🔐 Admin Login</h3>
+            </div>
+            <div class="form-group" style="margin-top: 20px;">
+                <input type="password" id="loginPin" placeholder="Enter PIN" style="text-align: center; font-size: 24px; letter-spacing: 8px; width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px;">
+            </div>
+            <div class="modal-foot" style="justify-content: center; gap: 10px; margin-top: 20px; display: flex;">
+                <button class="btn ghost" onclick="closeModal('loginModal')">Cancel</button>
+                <button class="btn primary" onclick="confirmLogin()">Login</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="devModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(10px); animation: fadeIn 0.5s;">
+        <div style="background: #1e293b; padding: 40px; border-radius: 20px; text-align: center; border: 1px solid #334155; box-shadow: 0 0 50px rgba(64, 199, 255, 0.2); max-width: 400px; position: relative; overflow: hidden;">
+            <div style="position: absolute; top: -50px; left: -50px; width: 100px; height: 100px; background: #40c7ff; filter: blur(60px); opacity: 0.5;"></div>
+            <h2 style="color: #40c7ff; font-size: 24px; margin-bottom: 5px; font-family: monospace;">SYSTEM ARCHITECT</h2>
+            <h1 style="color: white; font-size: 48px; font-weight: 800; margin: 0; letter-spacing: -2px;">ARM</h1>
+            <div style="width: 50px; height: 4px; background: #7c5cff; margin: 20px auto; border-radius: 2px;"></div>
+            <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">IMS Monitor System<br>Designed & Developed for PCG<br><span style="color: #64748b; font-size: 12px;">(HTML / JS / Supabase / Cloud)</span></p>
+            <button onclick="document.getElementById('devModal').style.display='none'" style="margin-top: 30px; background: transparent; border: 1px solid #475569; color: white; padding: 10px 30px; border-radius: 30px; cursor: pointer; transition: all 0.3s;">Close</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    
+    <script>
+        function openLoginModal() {
+            if(localStorage.getItem('ims_is_admin') === 'true') {
+                if(confirm("Logout?")) {
+                    localStorage.removeItem('ims_is_admin');
+                    document.getElementById('userDisplay').innerHTML = 'Login 🔒';
+                }
+            } else {
+                document.getElementById('loginPin').value = '';
+                document.getElementById('loginModal').classList.add('active');
+            }
+        }
+        function confirmLogin() {
+            if(document.getElementById('loginPin').value === "240442") {
+                localStorage.setItem('ims_is_admin', 'true');
+                document.getElementById('userDisplay').innerHTML = '<span style="color:#40c7ff; font-weight:bold;">Arm (Admin)</span> 🔓';
+                closeModal('loginModal');
+                alert("Welcome Admin!");
+            } else {
+                alert("Wrong PIN");
+            }
+        }
+        
+        // Check status on load
+        if(localStorage.getItem('ims_is_admin') === 'true') {
+            document.getElementById('userDisplay').innerHTML = '<span style="color:#40c7ff; font-weight:bold;">Arm (Admin)</span> 🔓';
+        }
+    </script>
+</body>
+</html>
