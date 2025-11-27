@@ -2,46 +2,50 @@
 // 1. CONFIGURATION & SETUP
 // =========================================
 
-// --- Supabase Config ---
 const SUPABASE_URL = 'https://xsnxtkukxorjxogirrrx.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhzbnh0a3VreG9yanhvZ2lycnJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQxNDc3NzIsImV4cCI6MjA3OTcyMzc3Mn0.tuiYQtbwrU8GE2OzeZT4PhB9TKgFzBSHS1XbaNknvGM';
 const STORAGE_BUCKET = 'ims-photos';
-
-// --- LINE API (Google Script) ---
-// ⚠️ อย่าลืมเอา URL ใหม่จากการ Deploy มาใส่ตรงนี้นะครับ
 const LINE_API_URL = 'https://script.google.com/macros/s/AKfycbwAaedVzzZqc39kJmUYdvlCutrkOP8D9o3d25C6DJ1Hsj0TKiNuv99jRyi--VsuP8my/exec'; 
 
-// --- Global Vars ---
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 const ALL_LINES = ['Ex.1', 'Ex.2', 'Ex.3', 'Ex.4', 'Ex.5'];
-
 let cases = []; 
 let activeCaseId = null; 
 let downtimeChart = null; 
-
-// Easter Egg Vars
 let eggClicks = 0;
 let eggTimer = null;
+
+// ตรวจสอบว่า Supabase โหลดมาจริงไหม
+if (typeof supabase === 'undefined') {
+    alert("❌ Error: Supabase ไม่ทำงาน! \nกรุณาเช็คว่าใส่ <script src='...supabase-js...'> ในหน้า HTML หรือยัง");
+}
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // =========================================
 // 2. INITIALIZATION
 // =========================================
 document.addEventListener("DOMContentLoaded", async () => {
+    console.log("🚀 System Starting...");
+    
     const today = new Date().toISOString().split('T')[0];
     const dateInput = document.getElementById('exDate');
     if(dateInput) dateInput.value = today;
 
+    // โหลดข้อมูล
     await fetchCases();
 
+    // เริ่มวาดหน้าจอ
     renderMonitor();
     if(document.getElementById('downtimeChart')) initChart();
     renderTable();
 
+    // ตั้งค่าอื่นๆ
     setupRealtime();
     checkLoginStatus();
     setupEasterEgg();
 
+    // Loop update
     setInterval(() => {
         updateDurations();
         renderMonitor(); 
@@ -58,36 +62,50 @@ function getShiftStartTime() {
     const cutoff = new Date();
     cutoff.setHours(8, 0, 0, 0); 
     if (now < cutoff) cutoff.setDate(cutoff.getDate() - 1);
-    return cutoff.toISOString();
+    return cutoff; // Return เป็น Date Object เพื่อเอาไปเทียบง่ายๆ
 }
 
 async function fetchCases() {
-    const shiftStart = getShiftStartTime();
+    console.log("Fetching data...");
+    
+    // ★★★ แบบ Play Safe: ดึงมา 100 ตัวล่าสุดก่อน แล้วค่อยกรองใน JS ★★★
     const { data, error } = await sb
         .from('ims_cases')
         .select('*')
-        .or(`created_at.gte.${shiftStart},status.neq.done`) 
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100); 
 
-    if (error) { console.error("Error fetching:", error); return; }
+    if (error) { 
+        console.error("Supabase Error:", error); 
+        return; 
+    }
 
-    cases = data.map(c => ({
-        id: c.id,
-        startTime: new Date(c.created_at),
-        dateStr: new Date(c.created_at).toLocaleDateString('th-TH'),
-        line: c.line,
-        reporter: c.reporter,
-        recipe: c.recipe,
-        plan: c.plan_tons,
-        status: c.status,
-        ackReason: c.ack_reason || '-',
-        resBy: c.resolve_by || '-',
-        resTank: c.resolve_tank || '-',
-        resolveTime: c.resolve_time ? new Date(c.resolve_time) : null,
-        exPhoto: c.ex_photo_url,
-        resPhoto: c.resolve_photo_url
-    }));
+    const shiftStart = getShiftStartTime();
 
+    // แปลงข้อมูล + กรองเฉพาะ (หลัง 8 โมง) หรือ (งานยังไม่จบ)
+    cases = data
+        .map(c => ({
+            id: c.id,
+            startTime: new Date(c.created_at),
+            dateStr: new Date(c.created_at).toLocaleDateString('th-TH'),
+            line: c.line,
+            reporter: c.reporter,
+            recipe: c.recipe,
+            plan: c.plan_tons,
+            status: c.status,
+            ackReason: c.ack_reason || '-',
+            resBy: c.resolve_by || '-',
+            resTank: c.resolve_tank || '-',
+            resolveTime: c.resolve_time ? new Date(c.resolve_time) : null,
+            exPhoto: c.ex_photo_url,
+            resPhoto: c.resolve_photo_url
+        }))
+        .filter(c => {
+            // เงื่อนไข: (เวลาสร้าง >= 8 โมงเช้า) หรือ (สถานะ != done)
+            return c.startTime >= shiftStart || c.status !== 'done';
+        });
+
+    console.log("Data loaded:", cases.length, "items");
     renderMonitor();
     renderTable();
     if(downtimeChart) updateChartData();
@@ -95,7 +113,10 @@ async function fetchCases() {
 
 function setupRealtime() {
     sb.channel('public:ims_cases')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'ims_cases' }, () => fetchCases())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ims_cases' }, () => {
+        console.log("Realtime update!");
+        fetchCases();
+    })
     .subscribe();
 }
 
@@ -120,14 +141,17 @@ function openModal(id) {
     if(id === 'extruderModal') {
         const now = new Date();
         document.getElementById('exTime').value = now.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'});
-        // Reset
-        ['exLine', 'exReporter', 'exRecipe', 'exPlan', 'exTankReq', 'exPhoto'].forEach(fid => document.getElementById(fid).value = "");
+        ['exLine', 'exReporter', 'exRecipe', 'exPlan', 'exTankReq', 'exPhoto'].forEach(fid => {
+            if(document.getElementById(fid)) document.getElementById(fid).value = "";
+        });
     }
-    document.getElementById(id).classList.add('active');
+    const modal = document.getElementById(id);
+    if(modal) modal.classList.add('active');
 }
 
 function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
+    const modal = document.getElementById(id);
+    if(modal) modal.classList.remove('active');
 }
 
 function calcTank() {
@@ -144,7 +168,7 @@ async function submitExtruder() {
     const tanksReq = document.getElementById('exTankReq').value;
     const fileInput = document.getElementById('exPhoto');
 
-    if(!line || !reporter || !recipe || !plan || fileInput.files.length === 0) {
+    if(!line || !reporter || !recipe || !plan || !fileInput.files[0]) {
         alert("กรุณากรอกข้อมูลให้ครบและแนบรูป!"); return;
     }
 
@@ -152,19 +176,18 @@ async function submitExtruder() {
     if (existing) { alert(`❌ ไลน์ ${line} มีเคสค้างอยู่!`); return; }
 
     const btn = document.querySelector('#extruderModal .btn.primary');
-    const originalText = btn.innerText;
-    btn.innerText = "⏳ Sending...";
-    btn.disabled = true;
+    if(btn) { btn.innerText = "⏳ Sending..."; btn.disabled = true; }
 
     try {
         const photoUrl = await uploadPhoto(fileInput.files[0]);
+        
         const { error } = await sb.from('ims_cases').insert([{
             line, reporter, recipe, plan_tons: parseFloat(plan), tanks_req: parseInt(tanksReq), ex_photo_url: photoUrl, status: 'new'
         }]);
 
         if (error) throw error;
 
-        // แจ้งเตือน LINE (New Case)
+        // LINE Notify
         fetch(LINE_API_URL, {
             method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
@@ -172,14 +195,18 @@ async function submitExtruder() {
         }).catch(e => console.error("Line Error", e));
 
         closeModal('extruderModal');
-    } catch (err) { alert("Error: " + err.message); } 
-    finally { btn.innerText = originalText; btn.disabled = false; }
+        // fetchCases จะทำงานเองจาก Realtime
+    } catch (err) { 
+        alert("Error: " + err.message); 
+    } finally { 
+        if(btn) { btn.innerText = "ยืนยันแจ้งเหตุ"; btn.disabled = false; }
+    }
 }
 
 function prepareAction(id, type) {
     activeCaseId = id;
     const c = cases.find(x => x.id === id);
-    const imgLink = c.exPhoto ? `<a href="${c.exPhoto}" target="_blank" style="color:#40c7ff; text-decoration:underline;">ดูรูปหลักฐาน</a>` : 'ไม่มีรูป';
+    const imgLink = c.exPhoto ? `<a href="${c.exPhoto}" target="_blank" style="color:#40c7ff;">ดูรูปหลักฐาน</a>` : '-';
     const infoHtml = `<strong>Line: ${c.line}</strong> | สินค้า: ${c.recipe}<br>ผู้แจ้ง: ${c.reporter} (รอมาแล้ว ${getDurationText(c)})<br>${imgLink}`;
     
     if(type === 'ack') {
@@ -205,11 +232,10 @@ async function submitResolve() {
     const tankId = document.getElementById('resTankId').value;
     const fileInput = document.getElementById('resPhoto');
 
-    if(!name || !tankId || fileInput.files.length === 0) { alert("กรุณากรอกข้อมูลและแนบรูปยืนยัน!"); return; }
+    if(!name || !tankId || !fileInput.files[0]) { alert("กรุณากรอกข้อมูลและแนบรูปยืนยัน!"); return; }
 
     const btn = document.querySelector('#blendingResolveModal .btn.green');
-    btn.innerText = "⏳ Closing...";
-    btn.disabled = true;
+    if(btn) { btn.innerText = "⏳ Closing..."; btn.disabled = true; }
 
     try {
         const photoUrl = await uploadPhoto(fileInput.files[0]);
@@ -221,7 +247,7 @@ async function submitResolve() {
 
         if (error) throw error;
 
-        // ★★★ แจ้งเตือน LINE (Resolved) พร้อมเวลา ★★★
+        // LINE Notify
         const currentCase = cases.find(c => c.id === activeCaseId);
         const diffMs = resolveTime - new Date(currentCase.startTime);
         const diffMins = Math.ceil(diffMs / 60000);
@@ -231,22 +257,19 @@ async function submitResolve() {
         fetch(LINE_API_URL, {
             method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                type: 'resolve', 
-                line: currentCase.line, 
-                tankId, 
-                resolver: name,
-                duration: durationStr 
-            })
+            body: JSON.stringify({ type: 'resolve', line: currentCase.line, tankId, resolver: name, duration: durationStr })
         }).catch(e => console.error("Line Error", e));
 
         closeModal('blendingResolveModal');
-    } catch (err) { alert("Error: " + err.message); } 
-    finally { btn.innerText = "ยืนยันจบงาน"; btn.disabled = false; }
+    } catch (err) { 
+        alert("Error: " + err.message); 
+    } finally { 
+        if(btn) { btn.innerText = "ยืนยันจบงาน"; btn.disabled = false; }
+    }
 }
 
 // =========================================
-// 5. UI RENDER & CHARTS
+// 5. UI RENDER
 // =========================================
 function renderMonitor() {
     const container = document.getElementById('linesContainer');
@@ -337,12 +360,18 @@ function getDurationText(c) {
     return `${m} นาที`;
 }
 
+// =========================================
+// 6. CHART
+// =========================================
 function initChart() {
     const ctx = document.getElementById('downtimeChart');
     if(!ctx) return;
     downtimeChart = new Chart(ctx, {
         type: 'bar',
-        data: { labels: ALL_LINES, datasets: [{ label: 'เวลารอสะสม (นาที)', data: [0,0,0,0,0], backgroundColor: '#3b82f6', borderRadius: 4 }] },
+        data: {
+            labels: ALL_LINES,
+            datasets: [{ label: 'เวลารอสะสม (นาที)', data: [0,0,0,0,0], backgroundColor: '#3b82f6', borderRadius: 4 }]
+        },
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
     });
 }
@@ -362,7 +391,7 @@ function updateChartData() {
 }
 
 // =========================================
-// 6. LOGIN & EASTER EGG
+// 7. LOGIN & EASTER EGG
 // =========================================
 function openLoginModal() {
     if (localStorage.getItem('ims_is_admin') === 'true') {
@@ -371,8 +400,9 @@ function openLoginModal() {
             checkLoginStatus();
         }
     } else {
-        document.getElementById('loginPin').value = '';
-        document.getElementById('loginModal').classList.add('active');
+        const pinEl = document.getElementById('loginPin');
+        if(pinEl) pinEl.value = '';
+        openModal('loginModal');
     }
 }
 
