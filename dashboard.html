@@ -299,79 +299,93 @@
         }
 
        function renderCharts() {
-            // 1. รายการสีที่ตัด "อื่นๆ" ออกแล้ว
-            const colors = { 
-                'คลังเต็ม': '#ef4444', 
-                'รอ QC': '#3b82f6', 
-                'ผลิตเกินแผน': '#f59e0b', 
-                'แผนดีเลย์': '#8b5cf6', 
-                'บรรจุภัณฑ์หมด': '#f97316', 
-                'รอรับเรื่อง': '#0f172a' 
-            };
-            
-            const lines = ['Ex.1', 'Ex.2', 'Ex.3', 'Ex.4', 'Ex.5'];
-            const reasons = Object.keys(colors);
-            
-            let stackData = {};
-            reasons.forEach(r => stackData[r] = [0,0,0,0,0]);
-            let reasonCounts = {};
+    // 1. กำหนดสีให้ครอบคลุมทุกสาเหตุ (ชื่อต้องตรงกับหน้า Operation เป๊ะๆ)
+    const colors = { 
+        'คลังเต็ม': '#ef4444',            // แดง
+        'รอ QC': '#3b82f6',              // ฟ้า
+        'ผลิตมากกว่าแผน': '#f59e0b',      // ส้มเหลือง
+        'งานรันมาไม่ได้คุณภาพ': '#10b981', // เขียว
+        'แผนบรรจุดีเลย์': '#8b5cf6',       // ม่วง
+        'บรรจุภัณฑ์ไม่มี': '#f97316',      // ส้มเข้ม
+        'รอรับเรื่อง': '#94a3b8'          // เทา
+    };
+    
+    const lines = ['Ex.1', 'Ex.2', 'Ex.3', 'Ex.4', 'Ex.5'];
+    const reasons = Object.keys(colors);
+    
+    let stackData = {};
+    reasons.forEach(r => stackData[r] = [0,0,0,0,0]);
+    let reasonCounts = {};
 
-            filteredCases.forEach(c => {
-                const idx = lines.indexOf(c.line);
-                
-                // 2. ปรับ Logic: ถ้าไม่มีข้อมูลหรือเป็นค่าเดิม "อื่นๆ" ให้ไปลงที่ 'รอรับเรื่อง'
-                const r = (c.status === 'new') ? 'รอรับเรื่อง' : (c.ackReason === 'อื่นๆ' || !c.ackReason ? 'รอรับเรื่อง' : c.ackReason);
-                
-                // 3. ตรวจสอบคีย์ ถ้าชื่อไม่ตรงในรายการ colors ให้ลง 'รอรับเรื่อง'
-                const key = colors[r] ? r : 'รอรับเรื่อง';
-                
-                if(idx !== -1) stackData[key][idx] += c.duration; 
-                reasonCounts[r] = (reasonCounts[r] || 0) + 1;
-            });
+    filteredCases.forEach(c => {
+        const idx = lines.indexOf(c.line);
+        
+        // 2. ปรับ Logic การดึงชื่อสาเหตุ
+        // ถ้าสถานะใหม่ให้เป็น 'รอรับเรื่อง' ถ้ามีข้อมูลเก่าเป็น 'อื่นๆ' ให้เปลี่ยนเป็น 'รอรับเรื่อง'
+        const r = (c.status === 'new') ? 'รอรับเรื่อง' : (c.ackReason === 'อื่นๆ' || !c.ackReason ? 'รอรับเรื่อง' : c.ackReason);
+        
+        // 3. ตรวจสอบ Key ถ้าชื่อสาเหตุ r ไม่มีในลิสต์สี ให้ดีดไปที่ 'รอรับเรื่อง'
+        const key = colors[r] ? r : 'รอรับเรื่อง';
+        
+        if(idx !== -1) stackData[key][idx] += c.duration; 
+        reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+    });
 
-            // --- ส่วนนี้คือส่วนที่หายไปตอนแรกที่ทำให้หน้าพัง ---
-            const datasets = reasons.map(r => ({
-                label: r, data: stackData[r], backgroundColor: colors[r], stack: 'Stack 0', borderRadius: 2, barThickness: 30
-            }));
+    const datasets = reasons.map(r => ({
+        label: r, 
+        data: stackData[r], 
+        backgroundColor: colors[r], 
+        stack: 'Stack 0', 
+        borderRadius: 2, 
+        barThickness: 30
+    }));
 
-            if(barChartInstance) barChartInstance.destroy();
-            if(pieChartInstance) pieChartInstance.destroy();
+    if(barChartInstance) barChartInstance.destroy();
+    if(pieChartInstance) pieChartInstance.destroy();
 
-            // Bar Chart
-            barChartInstance = new Chart(document.getElementById('barChart'), {
-                type: 'bar',
-                data: { labels: lines, datasets: datasets },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { x: { stacked: true, grid: {display: false} }, y: { stacked: true, border: {display: false} } },
-                    plugins: {
-                        legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 15, font: {family: 'Inter', size: 11} } },
-                        datalabels: { color: 'white', font: {weight:'bold', size:10}, display: ctx => ctx.dataset.data[ctx.dataIndex] > 0 }
-                    }
-                }
-            });
-
-            // Pie Chart
-            const pieData = { labels: Object.keys(reasonCounts), datasets: [{ data: Object.values(reasonCounts), backgroundColor: Object.keys(reasonCounts).map(k => colors[k] || '#ccc'), borderWidth: 0 }] };
-            pieChartInstance = new Chart(document.getElementById('pieChart'), {
-                type: 'doughnut', data: pieData,
-                options: {
-                    responsive: true, maintainAspectRatio: false, cutout: '70%',
-                    plugins: {
-                        legend: { display: false },
-                        datalabels: { color: 'white', font: {weight:'bold'}, formatter: (val, ctx) => {
-                            let sum = ctx.chart.data.datasets[0].data.reduce((a,b) => a+b, 0);
-                            return (val*100/sum).toFixed(0) + "%";
-                        }}
-                    }
-                }
-            });
-
-            const leg = document.getElementById('pieLegend');
-            leg.innerHTML = Object.keys(reasonCounts).map(k => 
-                `<div class="flex items-center gap-1.5 mb-1"><span class="w-2.5 h-2.5 rounded-full shadow-sm" style="background:${colors[k]||'#ccc'}"></span><span class="text-slate-600 font-medium">${k}</span> <span class="text-slate-400">(${reasonCounts[k]})</span></div>`
-            ).join('');
+    // ส่วนการสร้าง Chart (เหมือนเดิมแต่ใช้ข้อมูลที่ Update แล้ว)
+    barChartInstance = new Chart(document.getElementById('barChart'), {
+        type: 'bar',
+        data: { labels: lines, datasets: datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { x: { stacked: true, grid: {display: false} }, y: { stacked: true, border: {display: false} } },
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 15, font: {family: 'Inter', size: 11} } },
+                datalabels: { color: 'white', font: {weight:'bold', size:10}, display: ctx => ctx.dataset.data[ctx.dataIndex] > 0 }
+            }
         }
+    });
+
+    const pieData = { 
+        labels: Object.keys(reasonCounts), 
+        datasets: [{ 
+            data: Object.values(reasonCounts), 
+            backgroundColor: Object.keys(reasonCounts).map(k => colors[k] || '#ccc'), 
+            borderWidth: 0 
+        }] 
+    };
+    
+    pieChartInstance = new Chart(document.getElementById('pieChart'), {
+        type: 'doughnut', 
+        data: pieData,
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '70%',
+            plugins: {
+                legend: { display: false },
+                datalabels: { color: 'white', font: {weight:'bold'}, formatter: (val, ctx) => {
+                    let sum = ctx.chart.data.datasets[0].data.reduce((a,b) => a+b, 0);
+                    return (val*100/sum).toFixed(0) + "%";
+                }}
+            }
+        }
+    });
+
+    const leg = document.getElementById('pieLegend');
+    leg.innerHTML = Object.keys(reasonCounts).map(k => 
+        `<div class="flex items-center gap-1.5 mb-1"><span class="w-2.5 h-2.5 rounded-full shadow-sm" style="background:${colors[k]||'#ccc'}"></span><span class="text-slate-600 font-medium">${k}</span> <span class="text-slate-400">(${reasonCounts[k]})</span></div>`
+    ).join('');
+}
 
         function renderTable() {
             const tbody = document.getElementById('casesTableBody');
@@ -408,5 +422,6 @@
 </body>
 
 </html>
+
 
 
