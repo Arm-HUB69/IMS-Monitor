@@ -299,27 +299,38 @@
         }
 
         function renderCharts() {
-            // Colors Palette (Vivid & Professional)
-            const colors = { 
-                'คลังเต็ม': '#ef4444', 'งานรันมาไม่ได้คุณภาพ': '#3b82f6', 'ผลิตเกินแผน': '#f59e0b', 
-                'แผนบรรจุดีเลย์': '#8b5cf6', 'บรรจุภัณฑ์หมด': '#f97316', 'อื่นๆ': '#64748b', 'รอรับเรื่อง': '#0f172a' 
-            };
-            
-            const lines = ['Ex.1', 'Ex.2', 'Ex.3', 'Ex.4', 'Ex.5'];
-            const reasons = Object.keys(colors);
-            
-            let stackData = {};
-            reasons.forEach(r => stackData[r] = [0,0,0,0,0]);
-            let reasonCounts = {};
+    // 1. ลบ 'อื่นๆ' ออกจากรายการสี
+    const colors = { 
+        'คลังเต็ม': '#ef4444', 
+        'รอ QC': '#3b82f6', 
+        'ผลิตเกินแผน': '#f59e0b', 
+        'แผนดีเลย์': '#8b5cf6', 
+        'บรรจุภัณฑ์หมด': '#f97316', 
+        'รอรับเรื่อง': '#0f172a' 
+    };
+    
+    const lines = ['Ex.1', 'Ex.2', 'Ex.3', 'Ex.4', 'Ex.5'];
+    const reasons = Object.keys(colors);
+    
+    let stackData = {};
+    reasons.forEach(r => stackData[r] = [0,0,0,0,0]);
+    let reasonCounts = {};
 
-            filteredCases.forEach(c => {
-                const idx = lines.indexOf(c.line);
-                const r = (c.status === 'new') ? 'รอรับเรื่อง' : (c.ackReason || 'อื่นๆ');
-                const key = stackData[r] ? r : 'อื่นๆ';
-                
-                if(idx !== -1) stackData[key][idx] += c.duration; // Sum Time
-                reasonCounts[r] = (reasonCounts[r] || 0) + 1;
-            });
+    filteredCases.forEach(c => {
+        const idx = lines.indexOf(c.line);
+        
+        // 2. ปรับ Logic: ถ้าไม่มีข้อมูล ackReason ให้ใช้ 'รอรับเรื่อง' แทน 'อื่นๆ'
+        const r = (c.status === 'new') ? 'รอรับเรื่อง' : (c.ackReason || 'รอรับเรื่อง');
+        
+        // 3. ตรวจสอบ Key: ถ้าสาเหตุ r ไม่อยู่ในรายการ colors ให้ไปลงที่ 'รอรับเรื่อง'
+        const key = colors[r] ? r : 'รอรับเรื่อง';
+        
+        if(idx !== -1) stackData[key][idx] += c.duration; 
+        reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+    });
+
+    // ... ส่วนที่เหลือของฟังก์ชันไม่ต้องแก้ครับ ...
+}
 
             const datasets = reasons.map(r => ({
                 label: r, data: stackData[r], backgroundColor: colors[r], stack: 'Stack 0', borderRadius: 2, barThickness: 30
@@ -399,3 +410,4 @@
 </body>
 
 </html>
+
